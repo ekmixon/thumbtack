@@ -192,7 +192,7 @@ def test_mount_valid_images(test_client, expected_test_results, test_image_path)
             assert num_volumes == assertions["num_volumes"]
             assert response_json == expected_json_results
             for volume in volumes:
-                if not volume.get("mountpoint") in [None, ""]:
+                if volume.get("mountpoint") not in [None, ""]:
                     assert os.access(
                         volume["mountpoint"], os.R_OK
                     )  # Verify the mount point can be accessed

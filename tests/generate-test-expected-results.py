@@ -44,22 +44,17 @@ os.chdir("test_images")
 for image_path in images:
 
     print(f"################### {image_path} ##########################")
-    img = {}
     image_parser = imagemounter.ImageParser([image_path])
     disk = image_parser.disks[0]
 
-    img["name"] = disk._name
-    img["imagepath"] = disk.paths[0]
-    # img['mountpoint'] = disk.mountpoint  # gets overridden below because there is no disk mountpoint if no volumes are mounted
-    img["volumes"] = []
-
+    img = {"name": disk._name, "imagepath": disk.paths[0], "volumes": []}
     mountable = False
     mountable_checked = False
 
     for volume in image_parser.init():
         # img['mountpoint'] = disk.mountpoint
 
-        if not mountable_checked and not volume.mountpoint in [None, ""]:
+        if not mountable_checked and volume.mountpoint not in [None, ""]:
             mountable = True
             mountable_checked = True
 
@@ -79,12 +74,13 @@ for image_path in images:
         {
             "expected_json_response": img,
             "assertions": {
-                "disk_mountpoint": True if disk.mountpoint else False,
+                "disk_mountpoint": bool(disk.mountpoint),
                 "num_volumes": len(img["volumes"]),
                 "mountable": mountable,
             },
         }
     )
+
     image_parser.clean()
 
 

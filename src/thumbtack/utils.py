@@ -33,11 +33,7 @@ def get_supported_libraries():
         if len(line_split) > 0 and (
             "MISSING" in line_split or "INSTALLED" in line_split
         ):
-            if line_split[0] == "INSTALLED":
-                outputjson[str(line_split[1])] = True
-            else:
-                outputjson[str(line_split[1])] = False
-
+            outputjson[str(line_split[1])] = line_split[0] == "INSTALLED"
     return outputjson
 
 
@@ -75,13 +71,17 @@ def get_mount_info(image_path):
 
 
 def get_ref_count(rel_path):
-    ref_count = 0
-    result = query_db(
-        "SELECT ref_count FROM disk_images WHERE rel_path = ?", [rel_path], one=True
+    return (
+        result["ref_count"]
+        if (
+            result := query_db(
+                "SELECT ref_count FROM disk_images WHERE rel_path = ?",
+                [rel_path],
+                one=True,
+            )
+        )
+        else 0
     )
-    if result:
-        ref_count = result["ref_count"]
-    return ref_count
 
 
 def decrement_ref_count(rel_path):
@@ -186,7 +186,7 @@ def mount_image(relative_image_path):
 
     disk_image_id = image_info["id"]
     for volume in image_parser.disks[0].volumes:
-        v_mountpoint = volume.mountpoint if volume.mountpoint else None
+        v_mountpoint = volume.mountpoint or None
         # these mount codes come from the init_db() function
         mount_status_id = (
             mount_codes["Mounted"] if v_mountpoint else mount_codes["Unable to mount"]
@@ -196,9 +196,7 @@ def mount_image(relative_image_path):
         current_app.logger.info(f"  * Volume description: {volume.get_description()}")
         current_app.logger.info(f"  * Volume mountpoint: {v_mountpoint}")
         sql = "SELECT * FROM volumes WHERE disk_id = ? AND partition_index = ?"
-        row = query_db(sql, [disk_image_id, v_index], one=True)
-
-        if row:
+        if row := query_db(sql, [disk_image_id, v_index], one=True):
             # UPDATE
             sql = "UPDATE volumes SET mountpoint = ?, mount_status_id = ? WHERE disk_id = ? AND partition_index = ?"
             update_or_insert_db(
@@ -256,23 +254,22 @@ def unmount_all(force=False):
 
 
 def get_mount_codes():
-    mount_codes = {}
     rows = query_db("SELECT * FROM mount_status_codes")
-    for row in rows:
-        mount_codes[row["status"]] = row["id"]
-    return mount_codes
+    return {row["status"]: row["id"] for row in rows}
 
 
 def get_mount_status_by_id(mount_status_id):
-    status = None
-    result = query_db(
-        "SELECT status FROM mount_status_codes WHERE id = ?",
-        [mount_status_id],
-        one=True,
+    return (
+        result["status"]
+        if (
+            result := query_db(
+                "SELECT status FROM mount_status_codes WHERE id = ?",
+                [mount_status_id],
+                one=True,
+            )
+        )
+        else None
     )
-    if result:
-        status = result["status"]
-    return status
 
 
 def get_image_info(relative_image_path):
@@ -323,7 +320,7 @@ def get_image_info(relative_image_path):
         parser_bytes = disk_image["parser"]
         parser = pickle.loads(parser_bytes)
 
-    image_info = {
+    return {
         "id": id_,
         "rel_path": rel_path,
         "full_path": full_path,
@@ -334,7 +331,6 @@ def get_image_info(relative_image_path):
         "ref_count": ref_count,
         "parser": parser,
     }
-    return image_info
 
 
 def get_images(mounted=False):
@@ -387,11 +383,11 @@ def insert_images():
 
 def remove_image(full_path):
     full_path_str = str(full_path)
-    disk_image = query_db(
-        "SELECT * FROM disk_images WHERE full_path = ?", [full_path_str], one=True
-    )
-
-    if disk_image:
+    if disk_image := query_db(
+        "SELECT * FROM disk_images WHERE full_path = ?",
+        [full_path_str],
+        one=True,
+    ):
         current_app.logger.debug(f"Removing disk image from DB: {full_path}")
         sql = "DELETE from disk_images WHERE (full_path) = (?)"
         update_or_insert_db(sql, [full_path_str])
@@ -544,9 +540,7 @@ def check_ignored(full_path):
         return True
 
     # Ignore  *-1.vhd, *-2.vhd, ...,  *-N.vhd, but not *-0.vhd
-    if re.match(r".*\-\w+\.vhd$", full_path_str, flags=re.I) and not re.match(
-        r".*\-0\.vhd$", full_path_str, flags=re.I
-    ):
-        return True
-
-    return False
+    return bool(
+        re.match(r".*\-\w+\.vhd$", full_path_str, flags=re.I)
+        and not re.match(r".*\-0\.vhd$", full_path_str, flags=re.I)
+    )

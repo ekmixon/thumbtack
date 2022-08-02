@@ -66,11 +66,7 @@ def configure(app, base_url=None):
     app.logger.info("configuring extensions")
 
     static_folder = "static"
-    if base_url:
-        static_url_path = f"{base_url}/{static_folder}"
-    else:
-        static_url_path = static_folder
-
+    static_url_path = f"{base_url}/{static_folder}" if base_url else static_folder
     app.register_blueprint(
         main,
         static_folder=static_folder,
